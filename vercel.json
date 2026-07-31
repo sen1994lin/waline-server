@@ -6,6 +6,9 @@
   "env": {
     "NODE_OPTIONS": "--experimental-require-module"
   },
+  "engines": {
+    "node": "22.x"
+  },
   "builds": [
     {
       "src": "robots.txt",
