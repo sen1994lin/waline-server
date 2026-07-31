@@ -16,7 +16,7 @@
       "use": "@vercel/node",
       "config": {
         "includeFiles": [
-          "node_modules/@mathiax/mathjax-newcm-font/**/*",
+          "node_modules/@mathjax/mathjax-newcm-font/**/*",
           "node_modules/mhchemparser/**/*",
           "node_modules/ip2region/data/**"
         ]
