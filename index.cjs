@@ -1,4 +1,9 @@
 // ── Atlas MongoDB 连接修正（关键）──
+// 问题根因：Waline 依赖的 think-mongo（lib/socket.js:61）写死 `mongodb://` scheme 拼接连接串，
+// 而 Atlas 的「集群主域名」(cluster0.xxxx.mongodb.net) 只有 SRV 记录、没有 A 记录，
+// 导致默认 mongodb://user:pass@cluster0.xxxx:27017 解析失败 → 读写全部 500。
+// 解决：改用 Atlas 集群的 3 个「分片域名」（它们有 A 记录，且位于 AWS us-east-1，与 Vercel 同区）。
+// ⚠️ 若将来重建集群，分片域名会变化，需同步更新下面这 3 行。
 process.env.MONGO_HOST = JSON.stringify([
   'ac-xjbfaxx-shard-00-00.qsluwd2.mongodb.net',
   'ac-xjbfaxx-shard-00-01.qsluwd2.mongodb.net',
@@ -7,34 +12,10 @@ process.env.MONGO_HOST = JSON.stringify([
 process.env.MONGO_PORT = JSON.stringify([27017, 27017, 27017]);
 
 const Application = require('@waline/vercel');
-const handler = Application({
-  plugins: [],
-  async postSave(comment) {},
-});
 
-module.exports = async (req, res) => {
-  if (req.url === '/api/debug') {
-    let result = {
-      mongoHostEnv: process.env.MONGO_HOST,
-      mongoPortEnv: process.env.MONGO_PORT,
-      test: null,
-    };
-    try {
-      const { MongoClient } = require('mongodb');
-      const hosts = JSON.parse(process.env.MONGO_HOST).join(':27017,') + ':27017';
-      const uri = `mongodb://17736018227senlin_db_user:E0nthcJX43yvrI4a@${hosts}/waline?serverSelectionTimeoutMS=8000&connectTimeoutMS=8000`;
-      const t0 = Date.now();
-      const c = new MongoClient(uri, { serverSelectionTimeoutMS: 8000, connectTimeoutMS: 8000 });
-      await c.connect();
-      const ping = await c.db('admin').command({ ping: 1 });
-      result.test = { ok: true, ping, elapsedMs: Date.now() - t0 };
-      await c.close();
-    } catch (e) {
-      result.test = { ok: false, error: String(e).slice(0, 400), elapsedMs: Date.now() - t0 };
-    }
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.end(JSON.stringify(result, null, 2));
-    return;
-  }
-  return handler(req, res);
-};
+module.exports = Application({
+  plugins: [],
+  async postSave(comment) {
+    // do what ever you want after comment saved
+  },
+});
