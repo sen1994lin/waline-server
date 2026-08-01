@@ -5,6 +5,9 @@
   "engines": {
     "node": "22.x"
   },
+  "scripts": {
+    "postinstall": "node ./scripts/patch-think-mongo.cjs"
+  },
   "dependencies": {
     "@waline/vercel": "latest"
   }
