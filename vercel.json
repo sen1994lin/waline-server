@@ -1,11 +1,9 @@
 {
   "builds": [
-    { "src": "index.cjs", "use": "@vercel/node" },
-    { "src": "api/probe.cjs", "use": "@vercel/node" }
+    { "src": "index.cjs", "use": "@vercel/node" }
   ],
-  "routes": [
-    { "src": "/api/probe", "dest": "/api/probe.cjs" },
-    { "src": "/((?!robots\\.txt$).*)", "dest": "/index.cjs" }
+  "rewrites": [
+    { "source": "/((?!robots\\.txt$).*)", "destination": "/index.cjs" }
   ],
   "outputDirectory": "public",
   "engines": { "node": "22.x" }
