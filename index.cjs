@@ -1,5 +1,5 @@
 // Waline 留言墙 Vercel 服务端
-// 顶层覆盖 MongoDB 连接配置 + 内置 /api/probe 调试端点（不走 think-mongo）
+// 顶层覆盖 MongoDB 连接配置 + 内置 /api/probe 调试端点（仅用 Node 内置模块）
 
 process.env.MONGO_HOST = JSON.stringify([
   'ac-xjbfaxx-shard-00-00.qsluwd2.mongodb.net',
@@ -12,7 +12,6 @@ process.env.MONGO_OPT_RETRYWRITES = 'true';
 process.env.MONGO_OPT_W = 'majority';
 process.env.MONGO_OPT_AUTH_SOURCE = 'admin';
 
-const { MongoClient } = require('mongodb');
 const dns = require('dns').promises;
 const net = require('net');
 const tls = require('tls');
@@ -28,9 +27,6 @@ const SHARDS = [
   'ac-xjbfaxx-shard-00-01.qsluwd2.mongodb.net',
   'ac-xjbfaxx-shard-00-02.qsluwd2.mongodb.net',
 ];
-const USER = process.env.MONGO_USER || '17736018227senlin_db_user';
-const PASS = process.env.MONGO_PASSWORD || 'E0nthcJX43yvrI4a';
-const DB = process.env.MONGO_DB || 'waline';
 
 function step(name, fn) {
   return fn().then(
@@ -47,11 +43,11 @@ function timeout(p, ms, label) {
 
 async function probeHandler(req, res) {
   const log = [];
-  // 拿一个运行时刻的标识，证明 wrapper 跑的是当前代码
   const meta = {
     vercel_region: process.env.VERCEL_REGION,
     vercel_git_commit_sha: process.env.VERCEL_GIT_COMMIT_SHA,
     vercel_deployment_id: process.env.VERCEL_DEPLOYMENT_ID,
+    vercel_env: process.env.VERCEL_ENV,
     node_version: process.version,
     time_iso: new Date().toISOString(),
     req_url: req.url,
@@ -68,38 +64,17 @@ async function probeHandler(req, res) {
   for (const h of SHARDS) {
     log.push(await step(`TLS ${h}:27017`, () => timeout(new Promise((res2, rej) => {
       const s = tls.connect({ host: h, port: 27017, servername: h, rejectUnauthorized: false }, () => {
-        const out = { authorized: s.authorized, cipher: s.getCipher().name };
+        const out = { authorized: s.authorized, cipher: s.getCipher().name, protocol: s.getProtocol() };
         s.end(); res2(out);
       });
       s.on('error', rej); s.setTimeout(4000, () => { s.destroy(new Error('tls timeout')); });
     }), 5000, 'tls')));
   }
-  const hostList = SHARDS.map((h) => `${h}:27017`).join(',');
-  const uri = `mongodb://${USER}:${PASS}@${hostList}/${DB}?tls=true&tlsAllowInvalidCertificates=true&serverSelectionTimeoutMS=8000&connectTimeoutMS=6000`;
-  log.push(await step('MongoClient ping (replicaSet URI, TLS)', async () => {
-    const c = new MongoClient(uri);
-    try {
-      const t0 = Date.now();
-      const r = await c.db('admin').command({ ping: 1 });
-      return { r, ms: Date.now() - t0 };
-    } finally { await c.close(); }
-  }));
-  const srvUri = `mongodb+srv://${USER}:${PASS}@cluster0.qsluwd2.mongodb.net/${DB}?tls=true&serverSelectionTimeoutMS=8000`;
-  log.push(await step('MongoClient ping (SRV URI, TLS)', async () => {
-    const c = new MongoClient(srvUri);
-    try {
-      const t0 = Date.now();
-      const r = await c.db('admin').command({ ping: 1 });
-      return { r, ms: Date.now() - t0 };
-    } finally { await c.close(); }
-  }));
-
   res.setHeader('content-type', 'application/json');
   res.end(JSON.stringify({ meta, log }, null, 2));
 }
 
 module.exports = async (req, res) => {
-  // Waline handler 包装前先短路 /api/probe
   const u = (req.url || '').split('?')[0];
   if (u === '/api/probe' || u === '/api/probe/') {
     return probeHandler(req, res);
