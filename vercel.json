@@ -1,25 +1,12 @@
 {
   "builds": [
-    {
-      "src": "index.cjs",
-      "use": "@vercel/node",
-      "config": { "includeFiles": ["@waline/**"] }
-    },
-    {
-      "src": "probe.cjs",
-      "use": "@vercel/node"
-    }
+    { "src": "index.cjs", "use": "@vercel/node" },
+    { "src": "api/probe.cjs", "use": "@vercel/node" }
   ],
-  "rewrites": [
-    { "source": "/api/probe", "destination": "/probe" },
-    { "source": "/((?!robots\\.txt$).*)", "destination": "/index" }
+  "routes": [
+    { "src": "/api/probe", "dest": "/api/probe.cjs" },
+    { "src": "/((?!robots\\.txt$).*)", "dest": "/index.cjs" }
   ],
   "outputDirectory": "public",
-  "engines": { "node": "22.x" },
-  "functions": {
-    "index.cjs": {
-      "includeFiles": ["@waline/**", "node_modules/mongodb/**"],
-      "maxDuration": 60
-    }
-  }
+  "engines": { "node": "22.x" }
 }
