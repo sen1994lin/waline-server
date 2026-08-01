@@ -1,6 +1,5 @@
 // Waline 留言墙 Vercel 服务端
-// - 顶层覆盖 MongoDB 连接配置：用 Atlas 分片主机名（SRV 主域名无 A 记录）+ 强制 TLS
-// - 同时承担一个独立 /api/probe 调试端点：DNS+TCP+TLS+ping 全链路诊断（不走 think-mongo）
+// 顶层覆盖 MongoDB 连接配置 + 内置 /api/probe 调试端点（不走 think-mongo）
 
 process.env.MONGO_HOST = JSON.stringify([
   'ac-xjbfaxx-shard-00-00.qsluwd2.mongodb.net',
@@ -26,7 +25,7 @@ const walineHandler = Application({
 
 const SHARDS = [
   'ac-xjbfaxx-shard-00-00.qsluwd2.mongodb.net',
-  'ac-xjbfaxx-shard-00-01.qslubf2.mongodb.net',
+  'ac-xjbfaxx-shard-00-01.qsluwd2.mongodb.net',
   'ac-xjbfaxx-shard-00-02.qsluwd2.mongodb.net',
 ];
 const USER = process.env.MONGO_USER || '17736018227senlin_db_user';
@@ -48,6 +47,15 @@ function timeout(p, ms, label) {
 
 async function probeHandler(req, res) {
   const log = [];
+  // 拿一个运行时刻的标识，证明 wrapper 跑的是当前代码
+  const meta = {
+    vercel_region: process.env.VERCEL_REGION,
+    vercel_git_commit_sha: process.env.VERCEL_GIT_COMMIT_SHA,
+    vercel_deployment_id: process.env.VERCEL_DEPLOYMENT_ID,
+    node_version: process.version,
+    time_iso: new Date().toISOString(),
+    req_url: req.url,
+  };
   for (const h of SHARDS) {
     log.push(await step(`DNS A ${h}`, () => timeout(dns.resolve4(h), 5000, 'dns')));
   }
@@ -87,11 +95,13 @@ async function probeHandler(req, res) {
   }));
 
   res.setHeader('content-type', 'application/json');
-  res.end(JSON.stringify({ vercel_region: process.env.VERCEL_REGION, log }, null, 2));
+  res.end(JSON.stringify({ meta, log }, null, 2));
 }
 
 module.exports = async (req, res) => {
-  if (req.url && (req.url === '/api/probe' || req.url.startsWith('/api/probe?'))) {
+  // Waline handler 包装前先短路 /api/probe
+  const u = (req.url || '').split('?')[0];
+  if (u === '/api/probe' || u === '/api/probe/') {
     return probeHandler(req, res);
   }
   return walineHandler(req, res);
