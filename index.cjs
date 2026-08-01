@@ -15,10 +15,26 @@ process.env.MONGO_OPT_RETRYWRITES = 'true';
 process.env.MONGO_OPT_W = 'majority';
 
 const Application = require('@waline/vercel');
-
-module.exports = Application({
+const walineHandler = Application({
   plugins: [],
-  async postSave(comment) {
-    // do what ever you want after comment saved
-  },
+  async postSave(comment) {},
 });
+
+// VERSION_TAG 是部署时刻戳；用 module load 时的固定值证明新代码在跑
+const VERSION_TAG = 'WALINE-FIX-2026-08-01-RC1';
+
+module.exports = async (req, res) => {
+  const u = (req.url || '').split('?')[0];
+  if (u === '/version' || u === '/api/version') {
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({
+      version: VERSION_TAG,
+      commit: process.env.VERCEL_GIT_COMMIT_SHA,
+      deployment: process.env.VERCEL_DEPLOYMENT_ID,
+      region: process.env.VERCEL_REGION,
+      time: new Date().toISOString(),
+    }, null, 2));
+    return;
+  }
+  return walineHandler(req, res);
+};
