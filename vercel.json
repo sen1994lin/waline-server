@@ -6,5 +6,13 @@
     { "source": "/((?!robots\\.txt$).*)", "destination": "/index.cjs" }
   ],
   "outputDirectory": "public",
-  "engines": { "node": "22.x" }
+  "engines": { "node": "22.x" },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "x-waline-marker", "value": "v6-standalone-2026-08-01" }
+      ]
+    }
+  ]
 }
